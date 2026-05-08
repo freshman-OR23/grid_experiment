@@ -1,0 +1,12 @@
+﻿# Git 仓库忽略规则：保留代码、配置、说明和关键结果；跳过原始数据与大文件缓存
+/data/
+/data/raw/
+/data/processed/
+/data/sid/
+/outputs/logs/
+/outputs/profiling/
+__pycache__/
+*.pyc
+*.log
+*.tmp
+*.DS_Store

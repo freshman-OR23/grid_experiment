@@ -1,0 +1,102 @@
+seed: 42
+
+paths:
+  raw_data_dir: "data/raw/amazon_beauty"
+  processed_data_dir: "data/processed/amazon_beauty"
+  sid_dir: "data/sid/amazon_beauty"
+  checkpoint_dir: "outputs/checkpoints"
+  log_dir: "outputs/logs"
+  metrics_dir: "outputs/metrics"
+  profiling_dir: "outputs/profiling"
+
+dataset:
+  name: "amazon_beauty"
+  min_interactions: 5
+  text_fields:
+    - title
+    - categories
+    - description
+    - price
+
+text_encoder:
+  # 更强的公开文本编码器，比 MiniLM 更适合作为 item 语义向量来源
+  model_name: "BAAI/bge-base-en-v1.5"
+  device: "auto"
+  batch_size: 24
+  max_length: 256
+  normalize_embeddings: true
+
+tokenizer:
+  # 改用 RQ-VAE，并使用 K-Means 初始化每层码本
+  type: "rqvae"
+  num_layers: 4
+  codebook_size: 256
+  codebook_sizes: [16, 32, 64, 128]
+  random_state: 42
+  device: "auto"
+  # RQ-VAE 隐层宽度
+  hidden_dim: 256
+  # 量化前的潜向量维度
+  latent_dim: 128
+  # tokenizer 训练 batch
+  train_batch_size: 192
+  # tokenizer 学习率
+  learning_rate: 0.001
+  # tokenizer 训练轮数
+  num_epochs: 16
+  # commitment_beta：控制残差对码本的贴合力度
+  commitment_beta: 0.25
+  normalize_residuals: true
+  append_dedup_token: true
+  dedup_default_token: 0
+
+data:
+  history_window: 50
+  sliding_window: true
+  pad_token_id: 0
+  bos_token_id: 1
+  eos_token_id: 2
+  sid_token_offset: 3
+
+model:
+  # 继续上调生成模型容量
+  d_model: 320
+  n_heads: 8
+  num_encoder_layers: 4
+  num_decoder_layers: 4
+  dim_feedforward: 1024
+  dropout: 0.08
+  max_seq_len: 50
+
+training:
+  # 生成模型学习率；适当降低一点，换取更稳的收敛
+  learning_rate: 0.00015
+  weight_decay: 0.00001
+  # 单卡单步 batch；8GB 显存下先保持不变
+  batch_size: 6
+  # 验证 batch；适当调大一点提升验证吞吐
+  eval_batch_size: 18
+  # 梯度累积步数；等效放大 batch，缓解小显存限制
+  gradient_accumulation_steps: 6
+  # 训练 epoch 数；给模型足够时间把 tokenizer 质量转化成排序能力
+  num_epochs: 8
+  # early stopping 容忍次数；放宽，避免在第一轮抖动时过早停掉
+  patience: 16
+  # 验证间隔；拉大后验证更稳定，也能减少训练被频繁打断
+  validate_every_n_steps: 3000
+  # 每次验证最多抽多少个 batch；增大一些，降低小样本波动
+  validation_max_batches: 48
+  # 最小提升阈值；放松一点，让小幅改善也算进步
+  early_stopping_min_delta: 0.00001
+  # 前几次验证不触发 early stopping，给模型预热时间
+  early_stopping_warmup_validations: 10
+  use_amp: true
+
+decoding:
+  beam_width: 14
+  max_decode_len: 5
+  filter_invalid_sid: true
+  deduplicate_predictions: true
+  topk_eval: 10
+  prefix_pruning: true
+  candidate_multiplier: 4

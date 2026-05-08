@@ -1,0 +1,91 @@
+seed: 42
+
+paths:
+  raw_data_dir: "data/raw/amazon_beauty"
+  processed_data_dir: "data/processed/amazon_beauty"
+  sid_dir: "data/sid/amazon_beauty"
+  checkpoint_dir: "outputs/checkpoints"
+  log_dir: "outputs/logs"
+  metrics_dir: "outputs/metrics"
+  profiling_dir: "outputs/profiling"
+
+dataset:
+  name: "amazon_beauty"
+  # 5-core filtering 里的 k，表示每个用户和每个物品至少保留多少次交互
+  min_interactions: 5
+  # item 文本字段的拼接顺序，会直接影响语义编码结果
+  text_fields:
+    - title
+    - categories
+    - description
+    - price
+
+text_encoder:
+  # 默认轻量公开文本编码器，优先保证本机可跑通
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  # auto 表示优先 GPU，若不可用则自动退回 CPU
+  device: "auto"
+  # embedding 推理批大小，越大越快，但显存/内存占用更高
+  batch_size: 32
+  # 文本最大截断长度，越大保留语义越多，但编码更慢
+  max_length: 256
+  normalize_embeddings: true
+
+tokenizer:
+  type: "rkmeans"
+  # SID 残差层数，越大语义容量越强，但 SID 序列更难学习
+  num_layers: 3
+  # 每层码本大小，越大表达能力越强，但聚类与生成也更复杂
+  codebook_size: 256
+  # 是否对残差归一化，帮助聚类更稳定
+  normalize_residuals: true
+  random_state: 42
+
+data:
+  # 每个样本最多使用多少历史 item
+  history_window: 50
+  # 是否把单条用户序列展开成多个前缀训练样本
+  sliding_window: true
+  pad_token_id: 0
+  bos_token_id: 1
+  eos_token_id: 2
+  # 真实 SID token 从这个编号开始，避开特殊 token 冲突
+  sid_token_offset: 3
+
+model:
+  # token embedding / hidden 维度
+  d_model: 128
+  # 多头注意力头数
+  n_heads: 4
+  # 编码器层数
+  num_encoder_layers: 2
+  # 解码器层数
+  num_decoder_layers: 2
+  # FFN 隐层宽度
+  dim_feedforward: 256
+  # dropout 比例
+  dropout: 0.1
+  # 最大历史长度
+  max_seq_len: 50
+
+training:
+  learning_rate: 0.0005
+  weight_decay: 0.000001
+  batch_size: 16
+  gradient_accumulation_steps: 1
+  num_epochs: 3
+  patience: 2
+  validate_every_n_steps: 100
+  use_amp: true
+
+decoding:
+  # beam search 保留的候选路径数，越大通常更稳但更慢
+  beam_width: 20
+  # SID 最大解码长度，应与 tokenizer 层数一致
+  max_decode_len: 3
+  # 是否过滤无效 SID
+  filter_invalid_sid: true
+  # 是否对预测 item 去重
+  deduplicate_predictions: true
+  # 评估时保留前 K 个候选 item
+  topk_eval: 10
